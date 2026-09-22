@@ -8,7 +8,7 @@ using namespace std; //For the Standard Library
 void showheader();
 void runcli();
 void readcommand(const string& command);
-// void clearscreen();   
+void clearscreen();   
 
 
 //Main Function
@@ -24,12 +24,14 @@ int main(){
 
 void showheader() {
     cout << R"(
-  ______     _______.  ______   .______    _______     _______.____    ____ 
- /      |   /       | /  __  \  |   _  \  |   ____|   /       |\   \  /   / 
-|  ,----'  |   (----`|  |  |  | |  |_)  | |  |__     |   (----` \   \/   /  
-|  |        \   \    |  |  |  | |   ___/  |   __|     \   \      \_    _/   
-|  `----.----)   |   |  `--'  | |  |      |  |____.----)   |       |  |     
- \______|_______/     \______/  | _|      |_______|_______/        |__|     
+             _     ____   _____              
+            | |   / __ \ / ____|       
+  _ __   ___| | _| |  | | (___      /\         
+ | '_ \ / _ \ |/ / |  | |\___ \    (. . 7      
+ | | | |  __/   <| |__| |____) |    |  ~\
+ |_| |_|\___|_|\_\\____/|_____/     |_f_,)/
+
+ Type a command to begin (or 'exit' to quit)
 )" << endl;
 }
 
@@ -41,7 +43,8 @@ void runcli(){
         getline(cin, command);
 
         if (command == "clear") {
-            // clearscreen(); to be implemented (clears + reprints header)
+            clearscreen();
+            showheader();
         }
         else if (command == "exit") {
             exit(0);          
@@ -74,6 +77,7 @@ void readcommand(const string& command){
     }
 }
 
-void clearscreen(){
-
+void clearscreen() {
+    // used escape characters to clean, and \033[1;1H moves the cursor to the top left corner of the screen
+    std::cout << "\033[2J\033[1;1H";
 }
