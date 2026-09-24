@@ -1,14 +1,58 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <thread>
+#include <chrono>
 
 using namespace std; //For the Standard Library
 
-//Function Declarations
+/*
+    ============================================================
+                        NEKOS MARQUEE CONSOLE
+    ============================================================
+
+    DEVELOPMENT NOTE:
+    Functions are grouped according to their assigned feature.
+
+    Feel free to add any helper functions, variables, or other
+    components needed for your feature. Please place them under
+    the appropriate feature section to keep the code organized.
+*/
+
+
+
+// ============================================================
+// FEATURE 1: CONSOLE UI & COMMAND INTERPRETER
+// ============================================================
 void showheader();
 void runcli();
 void readcommand(const string& command);
+void showhelp();
+
+// Helpers
 void clearscreen();   
+
+
+// ============================================================
+// FEATURE 2: MARQUEE DISPLAY & ANIMATION
+// ============================================================
+void startmarquee();
+void stopmarquee();
+void runmarquee();
+
+
+// ============================================================
+// FEATURE 3: MARQUEE SETTINGS
+// ============================================================
+void settext(const string& text);
+void setspeed(int milliseconds);
+
+
+// ============================================================
+// FEATURE 4: PROGRAM INTEGRATION & PERFORMANCE
+// ============================================================
+void initializemarquee();
+void shutdownmarquee();
 
 
 //Main Function
