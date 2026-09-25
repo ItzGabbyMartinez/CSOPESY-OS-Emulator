@@ -19,6 +19,12 @@ using namespace std; //For the Standard Library
     the appropriate feature section to keep the code organized.
 */
 
+// ============================================================
+// SHARED MARQUEE SETTINGS
+// ============================================================
+// Marquee display/animation will use this later on
+string marqueeText = "Hello World!";
+int marqueeSpeed = 100;
 
 
 // ============================================================
@@ -61,6 +67,11 @@ int main(){
     //Let's keep main() limited to function calls so we can stay modular
     //this will make it easier for us to expand the project later for MO3
     showheader();
+
+    // Temporary tests for Feature 3
+    settext("NekOS Marquee Test");
+    setspeed(250);
+
     runcli();
 
     return 0;
@@ -124,4 +135,27 @@ void readcommand(const string& command){
 void clearscreen() {
     // used escape characters to clean, and \033[1;1H moves the cursor to the top left corner of the screen
     std::cout << "\033[2J\033[1;1H";
+}
+
+// ============================================================
+// FEATURE 3: MARQUEE SETTINGS
+// ============================================================
+void settext(const string& text){
+    if (text.empty()){
+        cout << "Error: Marquee text can't be empty." << endl;
+        return;
+    }
+    marqueeText = text;
+    cout << "Marquee text set to: " << marqueeText << endl;
+
+}
+
+
+void setspeed(int milliseconds){
+    if (milliseconds <= 0){
+        cout << "Error: Marquee speed must be greater than 0 milliseconds" << endl;
+        return;
+    }
+    marqueeSpeed = milliseconds;
+    cout << "Marquee speed set to: " << marqueeSpeed << "ms." << endl;
 }
