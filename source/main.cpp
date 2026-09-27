@@ -36,7 +36,8 @@ void readcommand(const string& command);
 void showhelp();
 
 // Helpers
-void clearscreen();   
+void clearscreen();
+string trim(const string& s);
 
 
 // ============================================================
@@ -61,7 +62,9 @@ void initializemarquee();
 void shutdownmarquee();
 
 
-//Main Function
+// ============================================================
+// MAIN FUNCTION
+// ============================================================
 int main(){
 
     //Let's keep main() limited to function calls so we can stay modular
@@ -77,6 +80,10 @@ int main(){
     return 0;
 }
 
+// ============================================================
+// FEATURE 1: CONSOLE UI & COMMAND INTERPRETER
+// ============================================================
+
 void showheader() {
     cout << R"(
              _     ____   _____              
@@ -85,56 +92,108 @@ void showheader() {
  | '_ \ / _ \ |/ / |  | |\___ \    (. . 7      
  | | | |  __/   <| |__| |____) |    |  ~\
  |_| |_|\___|_|\_\\____/|_____/     |_f_,)/
-
- Type a command to begin (or 'exit' to quit)
 )" << endl;
 }
 
-void runcli(){
+
+void runcli() {
     string command;
 
-    while (true){
-        cout << "Enter a command: ";
+    while (true) {
+        cout << "Command> ";
         getline(cin, command);
 
-        if (command == "clear") {
-            clearscreen();
-            showheader();
+        command = trim(command);
+
+        if (command.empty()) {
+            continue;
         }
-        else if (command == "exit") {
-            exit(0);          
-        }
-        else {
-            readcommand(command);   
+
+        readcommand(command);
+
+        if (command == "exit") {
+            break;
         }
     }
 }
 
-//Function responsible for handling the 5 required commands 
-void readcommand(const string& command){
-    if (command == "initialize") {
-        cout << "Initialize command recognized. Doing something." << endl;
+void readcommand(const string& command) {
+ 
+    // First, split into the command keyword and the rest as its argument.
+    size_t spacePos = command.find(' ');
+    string cmd = (spacePos == string::npos) ? command : command.substr(0, spacePos);
+    string arg  = (spacePos == string::npos) ? "" : trim(command.substr(spacePos + 1));
+ 
+    if (cmd == "help") {
+        showhelp();
     }
-    else if (command == "screen") {
-        cout << "Screen command recognized. Doing something." << endl;
+    else if (cmd == "clear") {
+        clearscreen();
+        showheader();
     }
-    else if (command == "scheduler-start") {
-        cout << "Scheduler-start command recognized. Doing something." << endl;
+    else if (cmd == "start_marquee") {
+        startmarquee();
     }
-    else if (command == "scheduler-stop") {
-        cout << "Scheduler-stop command recognized. Doing something." << endl;
+    else if (cmd == "stop_marquee") {
+        stopmarquee();
     }
-    else if (command == "report-util") {
-        cout << "Report-util command recognized. Doing something." << endl;
+    else if (cmd == "set_text") {
+        if (arg.empty()) {
+            cout << "Input Error: set_text requires a text argument. Usage: set_text <text>" << endl;
+        } else {
+            settext(arg);
+        }
+    }
+    else if (cmd == "set_speed") {
+        if (arg.empty()) {
+            cout << "Input Error: set_speed requires a number in milliseconds. Usage: set_speed <ms>" << endl;
+        } else {
+            // error checking of speed input!
+            try {
+                size_t pos;
+                int ms = stoi(arg, &pos);
+                if (pos != arg.size()) {
+                    cout << "Input Error: set_speed argument must be a whole number." << endl;
+                } else {
+                    setspeed(ms);
+                }
+            } catch (...) {
+                cout << "Input Error: set_speed argument must be a whole number." << endl;
+            }
+        }
+    }
+    else if (cmd == "exit") {
+        cout << "Exiting NekOS Marquee..." << endl;
     }
     else {
-        cout << command << " is not recognized as a command." << endl;
+        cout << "Error: '" << cmd
+             << "' is not recognized as a command." << endl;
     }
+}
+
+void showhelp() {
+    cout << "\n========== NekOS Commands ==========\n";
+    cout << "help             - Displays the commands and their descriptions\n";
+    cout << "start_marquee    - Starts the marquee animation\n";
+    cout << "stop_marquee     - Stops the marquee animation\n";
+    cout << "set_text <text>  - Sets the marquee text\n";
+    cout << "set_speed <ms>   - Sets the marquee refresh rate in milliseconds\n";
+    cout << "clear            - Clears the console\n";
+    cout << "exit             - Terminates the console\n";
+    cout << "====================================\n\n";
 }
 
 void clearscreen() {
     // used escape characters to clean, and \033[1;1H moves the cursor to the top left corner of the screen
     std::cout << "\033[2J\033[1;1H";
+}
+
+string trim(const string& s) {
+    // Just strips any whitespace before and after so extra spaces don't break command matching.
+    size_t start = s.find_first_not_of(" \t\r\n");
+    if (start == string::npos) return "";
+    size_t end = s.find_last_not_of(" \t\r\n");
+    return s.substr(start, end - start + 1);
 }
 
 // ============================================================
