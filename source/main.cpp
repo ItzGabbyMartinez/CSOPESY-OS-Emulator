@@ -26,6 +26,11 @@ using namespace std; //For the Standard Library
 string marqueeText = "Hello World!";
 int marqueeSpeed = 100;
 
+// For the stop/start functionality
+bool runMarquee = false;
+thread marqueeThread;
+
+
 
 // ============================================================
 // FEATURE 1: CONSOLE UI & COMMAND INTERPRETER
@@ -92,6 +97,14 @@ void showheader() {
  | '_ \ / _ \ |/ / |  | |\___ \    (. . 7      
  | | | |  __/   <| |__| |____) |    |  ~\
  |_| |_|\___|_|\_\\____/|_____/     |_f_,)/
+
+Group developer:
+    - BANCORO, Maria Fides
+    - DIMAUNAHAN, Chelsea Jei
+    - MANALANG, Kennese Ross
+    - MARTINEZ, Gabrielle
+
+ Version date: 
 )" << endl;
 }
 
@@ -189,11 +202,77 @@ void clearscreen() {
 }
 
 string trim(const string& s) {
-    // Just strips any whitespace before and after so extra spaces don't break command matching.
+    // Removes whitespace before and after the command.
     size_t start = s.find_first_not_of(" \t\r\n");
     if (start == string::npos) return "";
+
     size_t end = s.find_last_not_of(" \t\r\n");
     return s.substr(start, end - start + 1);
+}
+
+// ============================================================
+// FEATURE 2: MARQUEE DISPLAY & ANIMATION
+// ============================================================
+void startmarquee() {
+    if (runMarquee) return;                 // if the marquee is already running, do nothing.
+
+    runMarquee = true;                      // set the flag to true to indicate that the marquee is running.
+
+    cout << endl;                           // print a new line to separate marquee from the command prompt.
+    marqueeThread = thread(runmarquee);     // start the marquee animation in a separate thread
+
+}
+
+void stopmarquee() {
+    if (!runMarquee)                                // if the marquee is not running,
+    {
+        cout << "Marquee is not running!" << endl;  // print a message to inform the user
+        return;                                     // and return early 
+    } 
+
+    runMarquee = false;                             // signal animation loop to stop
+
+    if (marqueeThread.joinable())                   // join only if the thread is still active
+        marqueeThread.join();                       // wait for the marquee thread to finish before continuing, ensuring that the marquee has stopped before we proceed.    
+}
+
+void runmarquee() {
+
+    const int WIDTH = 70;           // the width of the marquee display area. 
+                                    // or, the number of characters that will be visible
+
+    int position = -marqueeText.length();   // start the text off-screen to the left.
+
+    while (runMarquee) {
+
+        // using ansi escape sequences/characters:
+        cout << "\033[s";     // save cursor position.
+        cout << "\033[A";     // move up to the marquee line
+        cout << "\r\033[2K";  // return to start and clear that line.
+
+        // draw marquee
+        if (position > 0)           // add leading spaces as it moves to the right (scrolling effect !)
+            cout << string(position, ' ');
+
+        if (position < 0)           // show only the visible part while entering the screen.
+            cout << marqueeText.substr(-position);
+        else
+            cout << marqueeText;    // show the full text once it is inside the display area.
+
+        cout.flush();          // flush the output to ensure it appears immediately.
+
+        cout << "\033[u";     // put back cursor to the command> line.
+
+        position++;           // move the text to the right for the next frame.
+
+        if (position > WIDTH)                   // if the text has completely scrolled out of view, reset position to start over.
+            position = -marqueeText.length(); 
+
+        this_thread::sleep_for(chrono::milliseconds(marqueeSpeed));
+        // this_thread::sleep_for --> C++ standard library function that pauses the
+        // current thread for the specified duration, so we can control the speed of the 
+        // marquee animation.
+    }
 }
 
 // ============================================================
