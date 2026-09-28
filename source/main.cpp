@@ -304,17 +304,6 @@ void runmarquee() {
             // Restore cursor to command line
             cout << "\033[u";
 
-            // Clear command line
-            cout << "\r\033[2K";
-
-            // Redraw command prompt and current input
-            cout << "Command> " << inputBuffer;
-
-            // Put cursor after current input
-            cout << "\r\033[" 
-                 << (9 + inputBuffer.length())
-                 << "C";
-
             cout.flush();
         }
 
