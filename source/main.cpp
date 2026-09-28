@@ -123,13 +123,15 @@ void runcli() {
 
             if (ch == '\r' || ch == '\n') {     // if the user pressed Enter/Return key
 
-                lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
+                {
+                    lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
 
-                cout << endl;                   // print a new line
+                    cout << endl;                   // print a new line
 
-                command = trim(inputBuffer);    // trim whitespace from the typed command
-                inputBuffer = "";               // clear the buffer for the next command
-
+                    command = trim(inputBuffer);    // trim whitespace from the typed command
+                    inputBuffer = "";               // clear the buffer for the next command
+                }
+                
                 if (!command.empty()) {         // if the command is not empty, process, else exit
                     readcommand(command);
 
@@ -138,10 +140,9 @@ void runcli() {
                     }
                 }
 
-                {
-                    lock_guard<mutex> lock(inputMutex);
-                    cout << "Command> " << flush;       // print the command prompt again for the next input
-                }   
+                
+                cout << "Command> " << flush;       // print the command prompt again for the next input
+                   
             }
 
             else if (ch == '\b') {              // if the user pressed Backspace
@@ -337,9 +338,12 @@ void settext(const string& text){
         cout << "Error: Marquee text can't be empty." << endl;
         return;
     }
-    marqueeText = text;
-    cout << "Marquee text set to: " << marqueeText << endl;
 
+    {
+        lock_guard<mutex> lock(inputMutex); 
+        marqueeText = text;
+        cout << "Marquee text set to: " << marqueeText << endl;
+    }
 }
 
 
@@ -348,8 +352,12 @@ void setspeed(int milliseconds){
         cout << "Error: Marquee speed must be greater than 0 milliseconds" << endl;
         return;
     }
-    marqueeSpeed = milliseconds;
-    cout << "Marquee speed set to: " << marqueeSpeed << "ms." << endl;
+
+    {
+        lock_guard<mutex> lock(inputMutex);
+        marqueeSpeed = milliseconds;
+        cout << "Marquee speed set to: " << marqueeSpeed << "ms." << endl;  
+    }
 }
 
 // ============================================================
