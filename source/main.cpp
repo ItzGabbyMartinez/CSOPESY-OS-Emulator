@@ -177,6 +177,7 @@ void readcommand(const string& command) {
     }
     else if (cmd == "exit") {
         cout << "Exiting NekOS Marquee..." << endl;
+        shutdownmarquee();
     }
     else {
         cout << "Error: '" << cmd
@@ -297,3 +298,18 @@ void setspeed(int milliseconds){
     marqueeSpeed = milliseconds;
     cout << "Marquee speed set to: " << marqueeSpeed << "ms." << endl;
 }
+
+// ============================================================
+// FEATURE 4: PROGRAM INTEGRATION & PERFORMANCE
+// ============================================================
+void initializemarquee(){
+    cout << "Initializing Marquee Subsystem..." << endl;
+
+    runMarquee = false; 
+}
+
+void shutdownmarquee(){
+    if (runMarquee) {
+        stopmarquee();
+    }
+};
