@@ -155,7 +155,7 @@ void runcli() {
             }
             else {                              // for any other regular typed character
                 lock_guard<mutex> lock(inputMutex); 
-                
+
                 inputBuffer += ch;              // append character to the input buffer
                 cout << ch << flush;        
             }
@@ -279,23 +279,43 @@ void runmarquee() {
 
     while (runMarquee) {
 
-        // using ansi escape sequences/characters:
-        cout << "\033[s";     // save cursor position.
-        cout << "\033[A";     // move up to the marquee line
-        cout << "\r\033[2K";  // return to start and clear that line.
+        {
+            lock_guard<mutex> lock(inputMutex);
 
-        // draw marquee
-        if (position > 0)           // add leading spaces as it moves to the right (scrolling effect !)
-            cout << string(position, ' ');
+            // Save current cursor position
+            cout << "\033[s";
 
-        if (position < 0)           // show only the visible part while entering the screen.
-            cout << marqueeText.substr(-position);
-        else
-            cout << marqueeText;    // show the full text once it is inside the display area.
+            // Move up to the marquee line
+            cout << "\033[A";
 
-        cout.flush();          // flush the output to ensure it appears immediately.
+            // Clear marquee line
+            cout << "\r\033[2K";
 
-        cout << "\033[u";     // put back cursor to the command> line.
+            // Draw marquee
+            if (position > 0)
+                cout << string(position, ' ');
+
+            if (position < 0)
+                cout << marqueeText.substr(-position);
+            else
+                cout << marqueeText;
+
+            // Restore cursor to command line
+            cout << "\033[u";
+
+            // Clear command line
+            cout << "\r\033[2K";
+
+            // Redraw command prompt and current input
+            cout << "Command> " << inputBuffer;
+
+            // Put cursor after current input
+            cout << "\r\033[" 
+                 << (9 + inputBuffer.length())
+                 << "C";
+
+            cout.flush();
+        }
 
         position++;           // move the text to the right for the next frame.
 
