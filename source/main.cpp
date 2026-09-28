@@ -79,11 +79,6 @@ int main(){
     //Let's keep main() limited to function calls so we can stay modular
     //this will make it easier for us to expand the project later for MO3
     showheader();
-
-    // Temporary tests for Feature 3
-    settext("NekOS Marquee Test");
-    setspeed(250);
-
     runcli();
 
     return 0;
@@ -108,7 +103,7 @@ Group developer:
     - MANALANG, Kennese Ross
     - MARTINEZ, Gabrielle
 
- Version date: 
+ Version date: September 28, 2026
 )" << endl;
 }
 
