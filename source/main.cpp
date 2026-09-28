@@ -182,6 +182,9 @@ void readcommand(const string& command) {
     else if (cmd == "set_text") {
         if (arg.empty()) {
             cout << "Input Error: set_text requires a text argument. Usage: set_text <text>" << endl;
+
+            cout << endl; // addtl line break for readability 
+
         } else {
             settext(arg);
         }
@@ -189,6 +192,8 @@ void readcommand(const string& command) {
     else if (cmd == "set_speed") {
         if (arg.empty()) {
             cout << "Input Error: set_speed requires a number in milliseconds. Usage: set_speed <ms>" << endl;
+
+            cout << endl; // addtl line break for readability
         } else {
             // error checking of speed input!
             try {
@@ -196,11 +201,15 @@ void readcommand(const string& command) {
                 int ms = stoi(arg, &pos);
                 if (pos != arg.size()) {
                     cout << "Input Error: set_speed argument must be a whole number." << endl;
+
+                    cout << endl;
                 } else {
                     setspeed(ms);
                 }
             } catch (...) {
                 cout << "Input Error: set_speed argument must be a whole number." << endl;
+
+                cout << endl;
             }
         }
     }
@@ -211,6 +220,8 @@ void readcommand(const string& command) {
     else {
         cout << "Error: '" << cmd
              << "' is not recognized as a command." << endl;
+
+        cout << endl;
     }
 }
 
