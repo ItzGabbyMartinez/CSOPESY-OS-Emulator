@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <conio.h>
+#include <mutex>
 
 using namespace std; //For the Standard Library
 
@@ -30,7 +32,9 @@ int marqueeSpeed = 100;
 bool runMarquee = false;
 thread marqueeThread;
 
-
+// shared command input, ownership synchronization
+string inputBuffer = "";
+mutex inputMutex;
 
 // ============================================================
 // FEATURE 1: CONSOLE UI & COMMAND INTERPRETER
@@ -111,21 +115,50 @@ Group developer:
 
 void runcli() {
     string command;
+    std::cout << "\nCommand> " << flush;
 
     while (true) {
-        cout << "Command> ";
-        getline(cin, command);
+        if (_kbhit()) {
+            char ch = _getch();
 
-        command = trim(command);
+            if (ch == '\r' || ch == '\n') {     // if the user pressed Enter/Return key
 
-        if (command.empty()) {
-            continue;
-        }
+                lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
 
-        readcommand(command);
+                cout << endl;                   // print a new line
 
-        if (command == "exit") {
-            break;
+                command = trim(inputBuffer);    // trim whitespace from the typed command
+                inputBuffer = "";               // clear the buffer for the next command
+
+                if (!command.empty()) {         // if the command is not empty, process, else exit
+                    readcommand(command);
+
+                    if (command == "exit") {
+                        break;
+                    }
+                }
+
+                {
+                    lock_guard<mutex> lock(inputMutex);
+                    cout << "Command> " << flush;       // print the command prompt again for the next input
+                }   
+            }
+
+            else if (ch == '\b') {              // if the user pressed Backspace
+                lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
+
+                if (!inputBuffer.empty()) {     // and is not empty, remove the last character, erase from console
+                    inputBuffer.pop_back();
+
+                    cout << "\b \b" << flush;   // Erase on screen
+                }
+            }
+            else {                              // for any other regular typed character
+                lock_guard<mutex> lock(inputMutex); 
+                
+                inputBuffer += ch;              // append character to the input buffer
+                cout << ch << flush;        
+            }
         }
     }
 }
