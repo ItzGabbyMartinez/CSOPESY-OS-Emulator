@@ -1,15 +1,3 @@
-#include <iostream>
-#include <string>
-#include <cstdlib>
-#include <thread>
-#include <chrono>
-#include <conio.h>
-#include <mutex>
-#include <queue> // used for ready queue
-#include <ctime> // used for timestamp
-
-#include "util.h"
-#include "marquee.h"
 #include "scheduler.h"
 #include "cli.h"
 
@@ -37,7 +25,9 @@ int main(){
     //this will make it easier for us to expand the project later for MO3
     showheader();
     createProcesses();      // creates the 10 processes as soon as NekOS starts
+    startscheduler();        // starts the scheduler and core threads
     runcli();
+    stopscheduler();         // stops the scheduler and core threads
 
     return 0;
 }

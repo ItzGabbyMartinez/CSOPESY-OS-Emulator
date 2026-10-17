@@ -4,10 +4,20 @@
 #include <string>
 #include <mutex>
 #include <queue> // used for ready queue
+#include <thread>
+#include <chrono>
+#include <atomic>
 
 using namespace std;
 
 extern mutex inputMutex;
+
+void createProcesses();
+void printProcessList();
+void startcores();              // cpu workers, not yet properly defined, for testing only ^^ 
+                                // it gets called before it exists so I put the prototype
+void stopcores();
+
 
 // ============================================================
 // SCHEDULER: PROCESSES AND READY QUEUE
@@ -31,14 +41,6 @@ queue<Process*> readyQueue;             // processes waiting for a core, FCFS!
 // 2 mutex below are used by different threads, so lock them before reading or changing the queue / the process info
 mutex readyQueueMutex;
 mutex processMutex;
-
-void createProcesses();
-void printProcessList();
-
-// ============================================================
-// SCHEDULER: PROCESSES AND READY QUEUE
-// ============================================================
-
 
 // makes process01 to process10 and puts them in the ready queue in order
 void createProcesses() {
@@ -85,5 +87,103 @@ void printProcessList() {
         }
     }
     cout << "--------------------------------------------" << endl << endl;
+}
+
+// ============================================================
+// SCHEDULER THREAD AND CORE TRACKING
+// ============================================================
+
+atomic<bool> runScheduler(false);           // flag that tells the scheduler (and the cores) to keep going or stop
+thread schedulerThread;                     // the one thread that hands out processes to the cores
+
+Process* coreProcess[NUM_CORES];            // process on each core, nullptr means the core is free
+                                            // (protected by processMutex)
+
+// Lock order: processMutex first, then readyQueueMutex
+// (if two threads lock them in different orders they can get stuck waiting on each other forever)
+
+// the scheduler thread: takes processes from the ready queue in FCFS order and gives them to free cores
+void runscheduler() {
+    while (runScheduler) {                      // keep looping until stopscheduler() turns the flag off
+        {
+            lock_guard<mutex> lock(processMutex);       // lock the process info
+            lock_guard<mutex> q(readyQueueMutex);       // lock the queue
+
+            for (int core = 0; core < NUM_CORES; core++) {      // go through each core, core 0 to 3
+                if (coreProcess[core] == nullptr && !readyQueue.empty()) {  // core is free and someone is waiting
+                    Process* p = readyQueue.front();    // front of the queue = first come, first served
+                    readyQueue.pop();                   // take it out of the queue
+
+                    p->state = "Running";               // mark as running (screen -ls reads this)
+                    p->coreId = core;                   // remember which core has it
+                    coreProcess[core] = p;              // the core is now busy
+                }
+            }
+        }                                       // locks release here
+
+        this_thread::sleep_for(chrono::milliseconds(1));    // rest a bit so we don't hog the CPU, then check again
+    }
+}
+
+// called by a core worker when its process is done, frees the core
+void releaseCore(int coreId) {
+    lock_guard<mutex> lock(processMutex);       // lock the process info before changing it
+    Process* p = coreProcess[coreId];           // the process that just finished on this core
+    p->state = "Finished";                      // screen -ls will now list it under finished
+    p->coreId = -1;                             // not on a core anymore
+    coreProcess[coreId] = nullptr;              // the core is free again, the scheduler will notice on its next loop
+}
+
+void startscheduler() {
+    if (runScheduler) return;                   // already running, do nothing
+    runScheduler = true;                        // turn the flag on before starting the threads
+    schedulerThread = thread(runscheduler);     // start the scheduler in its own thread
+    startcores();                               // start the 4 core threads
+}
+
+void stopscheduler() {
+    if (!runScheduler) return;                  // not running, nothing to stop
+    runScheduler = false;                       // tell every thread to stop
+    if (schedulerThread.joinable()) schedulerThread.join();     // wait for the scheduler thread to finish
+    stopcores();                                // then wait for the core threads
+}
+
+// ============================================================
+// TEMP: CORE THREADS (for testing, will be replaced/completed)
+// ============================================================
+
+thread coreThreads[NUM_CORES];                  // one thread per core
+
+void coreworker(int coreId) {
+    while (runScheduler) {                      // a core keeps working until the program stops
+        Process* p;                             // the process this core is going to run
+        {
+            lock_guard<mutex> lock(processMutex);   // lock before reading what the scheduler gave us
+            p = coreProcess[coreId];                // nullptr if nothing was assigned yet
+        }
+
+        if (p == nullptr) {                     // nothing to run on this core right now
+            this_thread::sleep_for(chrono::milliseconds(1));    // rest a bit, then check again
+            continue;
+        }
+
+        while (runScheduler && p->executedInstructions < p->totalInstructions) {    // run until all instructions are done
+            this_thread::sleep_for(chrono::milliseconds(20));   // pretend to do work (the real print command goes here)
+            lock_guard<mutex> lock(processMutex);               // lock before changing the progress
+            p->executedInstructions++;                          // one more instruction done
+        }
+
+        if (runScheduler) releaseCore(coreId);  // done, free the core (skip if we were told to stop midway)
+    }
+}
+
+void startcores() {
+    for (int i = 0; i < NUM_CORES; i++) coreThreads[i] = thread(coreworker, i);     // start one worker per core
+}
+
+void stopcores() {
+    for (int i = 0; i < NUM_CORES; i++) {
+        if (coreThreads[i].joinable()) coreThreads[i].join();   // wait for each core thread to finish
+    }
 }
 
