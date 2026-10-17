@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "util.h"
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <mutex>
 #include <queue> // used for ready queue
@@ -154,6 +155,24 @@ void stopscheduler() {
 
 thread coreThreads[NUM_CORES];                  // one thread per core
 
+// helper to write timestamp and core ID to the process's individual text file
+void executePrintToFiles(Process* p, int coreId) {
+    if (p == nullptr) return;
+
+    // make the print command write to each process's own text file (10 files total)
+    string filename = p->name + ".txt";
+    ofstream outFile(filename, ios::app);
+
+    if (outFile.is_open()) {
+        // output format:
+        // (MM/DD/YYYY HH:MM:SSAM/PM)
+        // Core:X
+        outFile << getTimestamp() << endl;
+        outFile << "Core:" << coreId << endl;
+        outFile.close();
+    }
+}
+
 void coreworker(int coreId) {
     while (runScheduler) {                      // a core keeps working until the program stops
         Process* p;                             // the process this core is going to run
@@ -167,10 +186,15 @@ void coreworker(int coreId) {
             continue;
         }
 
-        while (runScheduler && p->executedInstructions < p->totalInstructions) {    // run until all instructions are done
-            this_thread::sleep_for(chrono::milliseconds(20));   // pretend to do work (the real print command goes here)
-            lock_guard<mutex> lock(processMutex);               // lock before changing the progress
-            p->executedInstructions++;                          // one more instruction done
+        while (runScheduler && p->executedInstructions < p->totalInstructions) {
+            executePrintToFiles(p, coreId); // calls to write the files
+
+            {
+                lock_guard<mutex> lock(processMutex);
+                p->executedInstructions++;
+            }
+
+            this_thread::sleep_for(chrono::milliseconds(10)); // short execution delay
         }
 
         if (runScheduler) releaseCore(coreId);  // done, free the core (skip if we were told to stop midway)
