@@ -160,7 +160,7 @@ void readcommand(const string& command) {
         }
     }
     else if (cmd == "exit") {
-        cout << "Exiting NekOS Marquee..." << endl;
+        cout << "Shutting down NekOS..." << endl;
         shutdownmarquee();
     }
     else {
