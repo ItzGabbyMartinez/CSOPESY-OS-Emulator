@@ -157,18 +157,22 @@ thread coreThreads[NUM_CORES];                  // one thread per core
 
 // helper to write timestamp and core ID to the process's individual text file
 void executePrintToFiles(Process* p, int coreId) {
-    if (p == nullptr) return;
+if (p == nullptr) return;
 
-    // make the print command write to each process's own text file (10 files total)
     string filename = p->name + ".txt";
     ofstream outFile(filename, ios::app);
 
     if (outFile.is_open()) {
-        // output format:
-        // (MM/DD/YYYY HH:MM:SSAM/PM)
-        // Core:X
-        outFile << getTimestamp() << endl;
-        outFile << "Core:" << coreId << endl;
+        // write the header first
+        if (p->executedInstructions == 0) {
+            outFile << "Process name: " << p->name << endl;
+            outFile << "Logs:" << endl << endl;
+        }
+
+        // output format (matched with sir's sample format)
+        // (MM/DD/YYYY HH:MM:SSAM/PM) Core:X "Hello world from NekOS processXX!"
+        outFile << "(" << getTimestamp() << ") Core:" << coreId 
+                << " \"Hello world from " << p->name << "!\"" << endl;
         outFile.close();
     }
 }
