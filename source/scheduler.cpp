@@ -150,7 +150,7 @@ void stopscheduler() {
 }
 
 // ============================================================
-// TEMP: CORE THREADS (for testing, will be replaced/completed)
+// CORE THREADS
 // ============================================================
 
 thread coreThreads[NUM_CORES];                  // one thread per core
