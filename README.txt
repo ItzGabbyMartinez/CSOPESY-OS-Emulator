@@ -64,7 +64,7 @@ PROCESS OUTPUT
 ============================================================
 
 Each process generates its own text file containing the output
-of its print commands.
+of its 100 print commands.
 
 The following files are generated:
 
@@ -79,8 +79,17 @@ process08.txt
 process09.txt
 process10.txt
 
-Each print command records the timestamp when it was executed
-and the CPU core that executed it.
+Each file identifies the corresponding process and contains
+100 log entries. Each print command records the timestamp of
+execution, the CPU core that executed it, and a message from
+the process.
+
+Example:
+
+Process name: process02
+Logs:
+
+(10/17/2026 07:19:23PM) Core:1 "Hello world from process02!"
 
 The generation of process text files is temporary and is used
 for the FCFS scheduler homework. It will be disabled for the
