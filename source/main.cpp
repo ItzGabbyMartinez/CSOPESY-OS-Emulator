@@ -8,6 +8,8 @@
 #include <queue> // used for ready queue
 #include <ctime> // used for timestamp
 
+#include "util.h"
+
 using namespace std; //For the Standard Library
 
 /*
@@ -72,10 +74,6 @@ void showheader();
 void runcli();
 void readcommand(const string& command);
 void showhelp();
-
-// Helpers
-void clearscreen();
-string trim(const string& s);
 
 
 // ============================================================
@@ -276,34 +274,10 @@ void showhelp() {
     cout << "====================================\n\n";
 }
 
-void clearscreen() {
-    // used escape characters to clean, and \033[1;1H moves the cursor to the top left corner of the screen
-    std::cout << "\033[2J\033[1;1H";
-}
-
-string trim(const string& s) {
-    // Removes whitespace before and after the command.
-    size_t start = s.find_first_not_of(" \t\r\n");
-    if (start == string::npos) return "";
-
-    size_t end = s.find_last_not_of(" \t\r\n");
-    return s.substr(start, end - start + 1);
-}
-
 // ============================================================
 // SCHEDULER: PROCESSES AND READY QUEUE
 // ============================================================
 
-// returns the current date and time
-string getTimestamp() {
-    time_t now = time(nullptr);                 // get the current time
-    tm local;
-    localtime_s(&local, &now);                  // convert it to the local date and time
-
-    char buffer[30];
-    strftime(buffer, sizeof(buffer), "%m/%d/%Y %I:%M:%S%p", &local);    // followed format: MM/DD/YYYY HH:MM:SSAM
-    return string(buffer);
-}
 
 // makes process01 to process10 and puts them in the ready queue in order
 void createProcesses() {
