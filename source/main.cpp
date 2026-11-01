@@ -1,5 +1,6 @@
 #include "scheduler.h"
 #include "cli.h"
+#include "util.h"
 
 using namespace std; //For the Standard Library
 
@@ -24,8 +25,8 @@ int main(){
     //Let's keep main() limited to function calls so we can stay modular
     //this will make it easier for us to expand the project later for MO3
     showheader();
-    createProcesses();      // creates the 10 processes as soon as NekOS starts
-    startscheduler();        // starts the scheduler and core threads
+    // createProcesses();      // creates the 10 processes as soon as NekOS starts
+    // startscheduler();        // starts the scheduler and core threads
     runcli();
     stopscheduler();         // stops the scheduler and core threads
 

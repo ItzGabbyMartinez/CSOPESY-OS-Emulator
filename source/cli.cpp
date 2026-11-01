@@ -6,6 +6,7 @@
 #include <string>
 #include <conio.h>
 #include <mutex>
+#include "config.h"
 
 using namespace std;
 
@@ -41,7 +42,7 @@ Group developer:
     - MANALANG, Kennese Ross
     - MARTINEZ, Gabrielle
 
- Version date: September 28, 2026
+ Version date: November 01, 2026
 )" << endl;
 }
 
@@ -103,6 +104,36 @@ void readcommand(const string& command) {
     size_t spacePos = command.find(' ');
     string cmd = (spacePos == string::npos) ? command : command.substr(0, spacePos);
     string arg  = (spacePos == string::npos) ? "" : trim(command.substr(spacePos + 1));
+
+    // Initialize the system using the values from config.txt
+    if (cmd == "initialize") {
+        if (isInitialized) {
+            cout << "System is already initialized." << endl << endl;
+            return;
+        }
+
+        if (loadConfig("config.txt")) {
+            isInitialized = true;
+
+            cout << "System initialized successfully." << endl;
+            cout << "CPU cores: " << systemConfig.numCpu << endl;
+            cout << "Scheduler: " << systemConfig.scheduler << endl;
+            cout << "Quantum cycles: " << systemConfig.quantumCycles << endl;
+            cout << "Batch process frequency: " << systemConfig.batchProcessFreq << endl;
+            cout << "Min instructions: " << systemConfig.minIns << endl;
+            cout << "Max instructions: " << systemConfig.maxIns << endl;
+            cout << "Delay per execution: " << systemConfig.delaysPerExec << endl;
+            cout << endl;
+        }
+
+        return;
+    }
+
+    // Only initialize and exit are allowed before system initialization
+    if (!isInitialized && cmd != "exit") {
+        cout << "Error: Please initialize the system first." << endl << endl;
+        return;
+    }
  
     if (cmd == "help") {
         showhelp();
@@ -173,6 +204,7 @@ void readcommand(const string& command) {
 
 void showhelp() {
     cout << "\n========== NekOS Commands ==========\n";
+    cout << "initialize       - Initializes the system using config.txt\n";
     cout << "help             - Displays the commands and their descriptions\n";
     cout << "start_marquee    - Starts the marquee animation\n";
     cout << "stop_marquee     - Stops the marquee animation\n";
