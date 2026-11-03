@@ -1,6 +1,8 @@
 #include "process.h"
+#include "config.h"
 #include "util.h"
 #include <cctype>
+#include <random>
 
 using namespace std;
 
@@ -26,6 +28,15 @@ Process* createProcess(const string& name) {
     p.coreId = -1;
     p.startTime = getTimestamp();
     return &p;
+}
+
+// finds an existing process by name in a thread-safe way
+Process* findProcess(const string& name) {
+    lock_guard<mutex> lock(processListMutex);
+    for (Process& p : allProcesses) {
+        if (p.name == name) return &p;
+    }
+    return nullptr;
 }
 
 // turns FOR loops into plain repeated instructions so the worker only walks a flat list
@@ -96,4 +107,46 @@ bool executeNext(Process& p) {
 
     p.pc++;                                         // move to the next instruction
     return p.pc >= (int)p.instructions.size();
+}
+
+// Generates random instructions for a process based on config.txt parameters (min-ins / max-ins)
+void generateRandomInstructions(Process& p) {
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<int> targetDist(systemConfig.minIns, systemConfig.maxIns);
+    uniform_int_distribution<int> typeDist(0, 4); // PRINT, DECLARE, ADD, SUBTRACT, SLEEP (FOR handled separately or via flattening)
+
+    int targetCount = targetDist(gen);
+    vector<Instruction> rawInstructions;
+
+    while ((int)rawInstructions.size() < targetCount) {
+        int t = typeDist(gen);
+        Instruction ins;
+        if (t == 0) {
+            ins.type = PRINT;
+            ins.msg = "Hello world from " + p.name + "!";
+        } else if (t == 1) {
+            ins.type = DECLARE;
+            ins.var1 = "x" + to_string(rawInstructions.size());
+            uniform_int_distribution<int> valDist(0, 100);
+            ins.value = valDist(gen);
+        } else if (t == 2) {
+            ins.type = ADD;
+            ins.var1 = "y" + to_string(rawInstructions.size());
+            ins.arg2 = "5";
+            ins.arg3 = "10";
+        } else if (t == 3) {
+            ins.type = SUBTRACT;
+            ins.var1 = "z" + to_string(rawInstructions.size());
+            ins.arg2 = "20";
+            ins.arg3 = "5";
+        } else {
+            ins.type = SLEEP;
+            uniform_int_distribution<int> sleepDist(1, 10); // uint8 ticks
+            ins.value = sleepDist(gen);
+        }
+        rawInstructions.push_back(ins);
+    }
+
+    flattenInstructions(rawInstructions, p.instructions);
 }

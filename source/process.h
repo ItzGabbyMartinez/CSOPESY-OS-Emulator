@@ -37,3 +37,6 @@ extern std::mutex processListMutex;         // lock when adding to or looping ov
 Process* createProcess(const std::string& name);    // returns nullptr if the name is already taken
 bool executeNext(Process& p);                       // runs ONE instruction, returns true when none are left
 void flattenInstructions(const std::vector<Instruction>& in, std::vector<Instruction>& out);
+
+Process* findProcess(const std::string& name);      // returns nullptr if not found
+void generateRandomInstructions(Process& p);        // populates p.instructions based on config
