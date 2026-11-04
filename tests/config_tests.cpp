@@ -75,6 +75,32 @@ void testValidRR()
     );
 }
 
+
+void testQuotedFCFS()
+{
+    writeConfig(validConfig(4, "\"fcfs\""));
+
+    bool loaded = loadConfig(TEST_FILE);
+
+    expect(
+        loaded && systemConfig.scheduler == "fcfs",
+        "Accept quoted FCFS scheduler"
+    );
+}
+
+void testQuotedRR()
+{
+    writeConfig(validConfig(4, "\"rr\""));
+
+    bool loaded = loadConfig(TEST_FILE);
+
+    expect(
+        loaded && systemConfig.scheduler == "rr",
+        "Accept quoted Round Robin scheduler"
+    );
+}
+
+
 void testMinimumCPU()
 {
     writeConfig(validConfig(1));
@@ -104,6 +130,38 @@ void testZeroDelay()
         "Zero delays-per-exec is valid"
     );
 }
+
+
+void testSingularDelayParameter()
+{
+    string config = validConfig();
+
+    size_t pos = config.find("delays-per-exec");
+    config.replace(pos, string("delays-per-exec").size(),
+                   "delay-per-exec");
+
+    writeConfig(config);
+
+    bool loaded = loadConfig(TEST_FILE);
+
+    expect(
+        loaded && systemConfig.delaysPerExec == 0,
+        "Accept singular delay-per-exec parameter"
+    );
+}
+
+void testPluralDelayParameter()
+{
+    writeConfig(validConfig(4, "rr", 5, 1, 1000, 2000, 2));
+
+    bool loaded = loadConfig(TEST_FILE);
+
+    expect(
+        loaded && systemConfig.delaysPerExec == 2,
+        "Accept plural delays-per-exec parameter"
+    );
+}
+
 
 
 // ============================================================
@@ -137,6 +195,16 @@ void testInvalidScheduler()
     expect(
         !loadConfig(TEST_FILE),
         "Reject invalid scheduler"
+    );
+}
+
+void testInvalidQuotedScheduler()
+{
+    writeConfig(validConfig(4, "\"invalid\""));
+
+    expect(
+        !loadConfig(TEST_FILE),
+        "Reject invalid quoted scheduler"
     );
 }
 
@@ -277,6 +345,19 @@ void testDuplicateParameter()
     );
 }
 
+void testDuplicateDelayAliases()
+{
+    writeConfig(
+        validConfig() +
+        "delay-per-exec 1\n"
+    );
+
+    expect(
+        !loadConfig(TEST_FILE),
+        "Reject duplicate delay parameter aliases"
+    );
+}
+
 
 // ============================================================
 // VALUE VERIFICATION
@@ -317,17 +398,23 @@ int main()
     cout << "       NekOS Configuration Test Suite       " << endl;
     cout << "============================================" << endl << endl;
 
+
     cout << "--- Valid Configurations ---" << endl;
     testValidFCFS();
     testValidRR();
+    testQuotedFCFS();
+    testQuotedRR();
     testMinimumCPU();
     testMaximumCPU();
     testZeroDelay();
+    testSingularDelayParameter();
+    testPluralDelayParameter();
 
     cout << endl << "--- Invalid Values ---" << endl;
     testCPUTooLow();
     testCPUTooHigh();
     testInvalidScheduler();
+    testInvalidQuotedScheduler();
     testZeroQuantum();
     testZeroBatchFrequency();
     testZeroMinInstructions();
@@ -341,9 +428,11 @@ int main()
     testUnknownParameter();
     testNonNumericCPU();
     testDuplicateParameter();
+    testDuplicateDelayAliases();
 
     cout << endl << "--- Value Verification ---" << endl;
     testLoadedValues();
+
 
     cout << endl;
     cout << "============================================" << endl;

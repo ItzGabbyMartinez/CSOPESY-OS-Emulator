@@ -24,6 +24,10 @@ bool loadConfig(const string& filename) {
     set<string> foundKeys;
 
     while (file >> key) {
+        // Accept both delay-per-exec and delays-per-exec
+        if (key == "delay-per-exec") {
+            key = "delays-per-exec";
+        }
 
         // Reject duplicate parameters
         if (foundKeys.count(key) > 0) {
@@ -44,6 +48,16 @@ bool loadConfig(const string& filename) {
             if (!(file >> tempConfig.scheduler)) {
                 cout << "Error: Invalid value for scheduler." << endl;
                 return false;
+            }
+
+            // Accept both quoted and unquoted scheduler values
+            if (tempConfig.scheduler.size() >= 2 &&
+                tempConfig.scheduler.front() == '"' &&
+                tempConfig.scheduler.back() == '"') {
+
+                tempConfig.scheduler = tempConfig.scheduler.substr(
+                    1, tempConfig.scheduler.size() - 2
+                );
             }
         }
         else if (key == "quantum-cycles") {
