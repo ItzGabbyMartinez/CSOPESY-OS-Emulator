@@ -2,20 +2,23 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <mutex>
 
 using namespace std;
 
-// returns the current date and time
 string getTimestamp() {
-    time_t now = time(nullptr);                 // get the current time
-    tm* local = localtime(&now);                // kenn: had issues on my machine with localtime_s, 
-                                                // so using localtime instead. If you have issues, try changing it back/uncommenting to localtime_s
-    
-    // tm local;
-    // localtime_s(&local, &now);                  // convert it to the local date and time
+    static mutex timeMutex;
+    time_t now = time(nullptr);    // get current time
+    tm local;
+
+    {
+        lock_guard<mutex> lock(timeMutex);
+        tm* shared = localtime(&now);           // points to the shared buffer
+        local = *shared;                        // copy it before unlocking
+    }
 
     char buffer[30];
-    strftime(buffer, sizeof(buffer), "%m/%d/%Y %I:%M:%S%p", local);    // followed format: MM/DD/YYYY HH:MM:SSAM
+    strftime(buffer, sizeof(buffer), "%m/%d/%Y %I:%M:%S%p", &local);    // followed format: MM/DD/YYYY HH:MM:SSAM
     return string(buffer);
 }
 
