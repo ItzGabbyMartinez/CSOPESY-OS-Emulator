@@ -95,88 +95,113 @@ void stopbatchgenerator() {
     if (batchThread.joinable()) batchThread.join();
 }
 
-// Writes report to csopesy-log.txt
-void generateReportUtil(const string& path) {
-    lock_guard<mutex> dataLock(processMutex);
-    lock_guard<mutex> listLock(processListMutex);
 
-    ofstream out(path);
-    if (!out.is_open()) {
-        cout << "Error: Could not open " << path << " for writing." << endl << endl;
-        return;
-    }
+ // ============================================================
+ // CPU REPORTING
+ // ============================================================
 
-    int usedCores = 0;
-    for (int i = 0; i < systemConfig.numCpu; i++) {
-        if (i < (int)coreProcess.size() && coreProcess[i] != nullptr) usedCores++;
-    }
+ // Builds one consistent report for screen -ls and report-util
+ static string buildCPUReport() {
+     ostringstream report;
 
-    int utilPct = (systemConfig.numCpu > 0) ? (usedCores * 100) / systemConfig.numCpu : 0;
+     // Protect process and core information while reading
+     scoped_lock lock(processMutex, processListMutex);
 
-    out << "CPU utilization: " << utilPct << "%" << endl;
-    out << "Cores used: " << usedCores << endl;
-    out << "Cores available: " << (systemConfig.numCpu - usedCores) << endl << endl;
+     int totalCores = systemConfig.numCpu;
+     int usedCores = 0;
 
-    out << "Running processes:" << endl;
-    for (const Process& p : allProcesses) {
-        if (p.state == "Running" || p.state == "Waiting" || p.state == "Sleeping") {
-            string coreStr = (p.coreId >= 0) ? to_string(p.coreId) : "N/A";
-            out << left << setw(12) << p.name 
-                << " (" << p.startTime << ")   Core: " << setw(5) << coreStr 
-                << "   " << p.pc << " / " << p.instructions.size() << endl;
+     // Count cores that currently have assigned processes
+     for (const Process* p : coreProcess) {
+         if (p != nullptr) {
+             usedCores++;
+         }
+     }
+
+     int availableCores = totalCores - usedCores;
+
+     int utilization = (totalCores > 0)
+         ? (usedCores * 100) / totalCores
+         : 0;
+
+     report << "CPU utilization: " << utilization << "%\n";
+     report << "Cores used: " << usedCores << "\n";
+     report << "Cores available: " << availableCores << "\n";
+     report << "-----------------------------------------\n";
+
+     report << "Active processes (Running / Waiting / Sleeping):\n";
+
+     for (const Process& p : allProcesses) {
+         if (p.state == "Running" ||
+             p.state == "Waiting" ||
+             p.state == "Sleeping") {
+
+             string coreStr = (p.coreId >= 0)
+                 ? to_string(p.coreId)
+                 : "N/A";
+
+             report << left << setw(12) << p.name
+                 << " (" << p.startTime << ")"
+                 << "   State: " << setw(10) << p.state
+                 << "   Core: " << setw(5) << coreStr
+                 << "   " << p.pc
+                 << " / " << p.instructions.size()
+                 << "\n";
         }
     }
 
-    out << "\nFinished processes:" << endl;
-    for (const Process& p : allProcesses) {
-        if (p.state == "Finished") {
-            out << left << setw(12) << p.name 
-                << " (" << p.startTime << ")   Finished   " 
-                << p.instructions.size() << " / " << p.instructions.size() << endl;
-        }
-    }
+     report << "\nFinished processes:\n";
 
-    out.close();
-    cout << "Report generated at " << path << "!" << endl << endl;
-}
+     for (const Process& p : allProcesses) {
+         if (p.state == "Finished") {
+             report << left << setw(12) << p.name
+                    << " (" << p.startTime << ")"
+                    << "   Finished   "
+                    << p.pc
+                    << " / " << p.instructions.size()
+                    << "\n";
+         }
+     }
 
-// screen -ls, shows the running and finished processes
-void printProcessList() {
-    lock_guard<mutex> dataLock(processMutex);
-    lock_guard<mutex> listLock(processListMutex);
+     return report.str();
+ }
 
-    int usedCores = 0;
-    for (int i = 0; i < systemConfig.numCpu; i++) {
-        if (i < (int)coreProcess.size() && coreProcess[i] != nullptr) {
-            usedCores++;
-        }
-    }
+ // Display the CPU report in the console
+ void printProcessList() {
+     cout << buildCPUReport() << endl;
+ }
 
-    int utilPct = (systemConfig.numCpu > 0) ? (usedCores * 100) / systemConfig.numCpu : 0;
+ // Save the same CPU report to a text file
+ void generateReportUtil(const string& path) {
+     string report = buildCPUReport();
 
-    cout << "CPU utilization: " << utilPct << "%" << endl;
-    cout << "Cores used: " << usedCores << endl;
-    cout << "Cores available: " << (systemConfig.numCpu - usedCores) << endl;
-    cout << "-----------------------------------------" << endl;
-    cout << "Running processes:" << endl;
+     ofstream out(path);
 
-    for (const Process& p : allProcesses) {
-        if (p.state == "Running" || p.state == "Waiting" || p.state == "Sleeping") {
-            string coreStr = (p.coreId >= 0) ? to_string(p.coreId) : "N/A";
-            cout << left << setw(12) << p.name << "   (" << p.startTime << ")   Core: " << setw(5) << coreStr
-                 << "   " << p.pc << " / " << p.instructions.size() << endl;
-        }
-    }
+     if (!out.is_open()) {
+         cout << "Error: Could not open "
+              << path << " for writing." << endl << endl;
+         return;
+     }
 
-    cout << endl << "Finished processes:" << endl;
-    for (const Process& p : allProcesses) {
-        if (p.state == "Finished") {
-            cout << left << setw(12) << p.name << "   (" << p.startTime << ")   Finished   "
-                 << p.instructions.size() << " / " << p.instructions.size() << endl;
-        }
-    }
-    cout << endl;
-}
+     out << report;
+
+     if (!out.good()) {
+         cout << "Error: Could not write report to "
+              << path << "." << endl << endl;
+         return;
+     }
+
+     out.close();
+
+     if (out.fail()) {
+         cout << "Error: Could not finish writing report to "
+              << path << "." << endl << endl;
+         return;
+     }
+
+     cout << "Report generated at "
+          << path << "!" << endl << endl;
+ }
+
 
 // ============================================================
 // SCHEDULER THREAD
