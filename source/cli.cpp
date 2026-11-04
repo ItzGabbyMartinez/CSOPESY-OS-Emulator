@@ -47,6 +47,9 @@ Group developer:
 }
 
 
+#include <thread>
+#include <chrono>
+
 void runcli() {
     string command;
     std::cout << "\nCommand> " << flush;
@@ -55,18 +58,15 @@ void runcli() {
         if (_kbhit()) {
             char ch = _getch();
 
-            if (ch == '\r' || ch == '\n') {     // if the user pressed Enter/Return key
-
+            if (ch == '\r' || ch == '\n') {     // if user pressed Enter
                 {
-                    lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
-
-                    cout << endl;                   // print a new line
-
-                    command = trim(inputBuffer);    // trim whitespace from the typed command
-                    inputBuffer = "";               // clear the buffer for the next command
+                    lock_guard<mutex> lock(inputMutex);
+                    cout << endl;
+                    command = trim(inputBuffer);
+                    inputBuffer = "";
                 }
                 
-                if (!command.empty()) {         // if the command is not empty, process, else exit
+                if (!command.empty()) {
                     readcommand(command);
 
                     if (command == "exit") {
@@ -74,26 +74,23 @@ void runcli() {
                     }
                 }
 
-                
-                cout << "Command> " << flush;       // print the command prompt again for the next input
-                   
+                cout << "Command> " << flush;
             }
-
-            else if (ch == '\b') {              // if the user pressed Backspace
-                lock_guard<mutex> lock(inputMutex); // lock the input buffer for thread safety
-
-                if (!inputBuffer.empty()) {     // and is not empty, remove the last character, erase from console
+            else if (ch == '\b') {              // backspace
+                lock_guard<mutex> lock(inputMutex);
+                if (!inputBuffer.empty()) {
                     inputBuffer.pop_back();
-
-                    cout << "\b \b" << flush;   // Erase on screen
+                    cout << "\b \b" << flush;
                 }
             }
-            else {                              // for any other regular typed character
-                lock_guard<mutex> lock(inputMutex); 
-
-                inputBuffer += ch;              // append character to the input buffer
-                cout << ch << flush;        
+            else {                              // regular character
+                lock_guard<mutex> lock(inputMutex);
+                inputBuffer += ch;
+                cout << ch << flush;
             }
+        } else {
+            // prevent 100% CPU lock in the input loop
+            this_thread::sleep_for(chrono::milliseconds(10));
         }
     }
 }
@@ -114,6 +111,7 @@ void readcommand(const string& command) {
 
         if (loadConfig("config.txt")) {
             isInitialized = true;
+            startscheduler(); // Automatically start CPU worker threads after initializing
 
             cout << "System initialized successfully." << endl;
             cout << "CPU cores: " << systemConfig.numCpu << endl;
@@ -182,6 +180,17 @@ void readcommand(const string& command) {
             }
         }
     }
+    else if (cmd == "scheduler-start") {
+        startbatchgenerator();
+        cout << "Batch process generator started." << endl << endl;
+    }
+    else if (cmd == "scheduler-stop") {
+        stopbatchgenerator();
+        cout << "Batch process generator stopped." << endl << endl;
+    }
+    else if (cmd == "report-util") {
+        generateReportUtil("csopesy-log.txt");
+    }
     else if (cmd == "screen") {
         if (arg == "-ls") {
             printProcessList();         // show running and finished processes
@@ -192,6 +201,7 @@ void readcommand(const string& command) {
     }
     else if (cmd == "exit") {
         cout << "Shutting down NekOS..." << endl;
+        stopscheduler();
         shutdownmarquee();
     }
     else {
@@ -205,6 +215,9 @@ void readcommand(const string& command) {
 void showhelp() {
     cout << "\n========== NekOS Commands ==========\n";
     cout << "initialize       - Initializes the system using config.txt\n";
+    cout << "scheduler-start  - Starts batch dummy process generation\n";
+    cout << "scheduler-stop   - Stops batch dummy process generation\n";
+    cout << "report-util      - Generates CPU utilization report in csopesy-log.txt\n";
     cout << "help             - Displays the commands and their descriptions\n";
     cout << "start_marquee    - Starts the marquee animation\n";
     cout << "stop_marquee     - Stops the marquee animation\n";

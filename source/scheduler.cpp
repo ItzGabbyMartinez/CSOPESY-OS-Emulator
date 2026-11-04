@@ -7,9 +7,12 @@
 #include <string>
 #include <mutex>
 #include <queue> // used for ready queue
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <iomanip>
+#include <sstream>
 
 using namespace std;
 
@@ -23,7 +26,7 @@ void stopcores();
 
 
 // ============================================================
-// SCHEDULER: READY QUEUE
+// SCHEDULER: READY QUEUE & CORE TRACKING
 // ============================================================
          
 queue<Process*> readyQueue;             // processes waiting for a core, FCFS!
@@ -31,6 +34,14 @@ queue<Process*> readyQueue;             // processes waiting for a core, FCFS!
 // 2 mutex below are used by different threads, so lock them before reading or changing the queue / the process info
 mutex readyQueueMutex;
 mutex processMutex;
+
+atomic<bool> runScheduler(false);           // flag that tells the scheduler (and the cores) to keep going or stop
+thread schedulerThread;                     // the one thread that hands out processes to the cores
+
+// Core tracking vectors declared here so functions below can access them
+vector<Process*> coreProcess;               // dynamic array based on systemConfig.numCpu
+vector<int> coreQuantumUsed;                // tracks RR quantum ticks per core
+vector<thread> coreThreads;                 // dynamic worker threads
 
 // helper for screen -s <name> (and scheduler-start) to push a new process into readyQueue
 void enqueueProcess(Process* p) {
@@ -44,85 +55,186 @@ void enqueueProcess(Process* p) {
     readyQueue.push(p);
 }
 
+// ============================================================
+// BATCH GENERATOR (scheduler-start / scheduler-stop) & REPORTING
+// ============================================================
+atomic<bool> runBatchGen(false);
+thread batchThread;
+static atomic<int> processCounter(1);
+
+static string generateNextProcessName() {
+    ostringstream ss;
+    ss << "p" << setfill('0') << setw(2) << processCounter++;
+    return ss.str();
+}
+
+void batchworker() {
+    while (runBatchGen) {
+        {
+            string name = generateNextProcessName();
+            Process* p = createProcess(name);
+            if (p != nullptr) {
+                generateRandomInstructions(*p);
+                enqueueProcess(p);
+            }
+        }
+        int delayMs = systemConfig.batchProcessFreq * 10;
+        this_thread::sleep_for(chrono::milliseconds(max(1, delayMs)));
+    }
+}
+
+void startbatchgenerator() {
+    if (runBatchGen) return;
+    runBatchGen = true;
+    batchThread = thread(batchworker);
+}
+
+void stopbatchgenerator() {
+    if (!runBatchGen) return;
+    runBatchGen = false;
+    if (batchThread.joinable()) batchThread.join();
+}
+
+// Writes report to csopesy-log.txt
+void generateReportUtil(const string& path) {
+    lock_guard<mutex> dataLock(processMutex);
+    lock_guard<mutex> listLock(processListMutex);
+
+    ofstream out(path);
+    if (!out.is_open()) {
+        cout << "Error: Could not open " << path << " for writing." << endl << endl;
+        return;
+    }
+
+    int usedCores = 0;
+    for (int i = 0; i < systemConfig.numCpu; i++) {
+        if (i < (int)coreProcess.size() && coreProcess[i] != nullptr) usedCores++;
+    }
+
+    int utilPct = (systemConfig.numCpu > 0) ? (usedCores * 100) / systemConfig.numCpu : 0;
+
+    out << "CPU utilization: " << utilPct << "%" << endl;
+    out << "Cores used: " << usedCores << endl;
+    out << "Cores available: " << (systemConfig.numCpu - usedCores) << endl << endl;
+
+    out << "Running processes:" << endl;
+    for (const Process& p : allProcesses) {
+        if (p.state == "Running" || p.state == "Waiting" || p.state == "Sleeping") {
+            string coreStr = (p.coreId >= 0) ? to_string(p.coreId) : "N/A";
+            out << left << setw(12) << p.name 
+                << " (" << p.startTime << ")   Core: " << setw(5) << coreStr 
+                << "   " << p.pc << " / " << p.instructions.size() << endl;
+        }
+    }
+
+    out << "\nFinished processes:" << endl;
+    for (const Process& p : allProcesses) {
+        if (p.state == "Finished") {
+            out << left << setw(12) << p.name 
+                << " (" << p.startTime << ")   Finished   " 
+                << p.instructions.size() << " / " << p.instructions.size() << endl;
+        }
+    }
+
+    out.close();
+    cout << "Report generated at " << path << "!" << endl << endl;
+}
+
 // screen -ls, shows the running and finished processes
 void printProcessList() {
-    lock_guard<mutex> consoleLock(inputMutex);  // lock the console so it doesn't mix with the marquee
-    lock_guard<mutex> dataLock(processMutex);  // lock the process info so it doesn't change while printing
-    lock_guard<mutex> listLock(processListMutex); // lock the allProcesses deque from process.h
+    lock_guard<mutex> dataLock(processMutex);
+    lock_guard<mutex> listLock(processListMutex);
 
+    int usedCores = 0;
+    for (int i = 0; i < systemConfig.numCpu; i++) {
+        if (i < (int)coreProcess.size() && coreProcess[i] != nullptr) {
+            usedCores++;
+        }
+    }
+
+    int utilPct = (systemConfig.numCpu > 0) ? (usedCores * 100) / systemConfig.numCpu : 0;
+
+    cout << "CPU utilization: " << utilPct << "%" << endl;
+    cout << "Cores used: " << usedCores << endl;
+    cout << "Cores available: " << (systemConfig.numCpu - usedCores) << endl;
     cout << "-----------------------------------------" << endl;
     cout << "Running processes:" << endl;
 
     for (const Process& p : allProcesses) {
-        if (p.state == "Running") {                 // only show the processes that are running
-            cout << p.name << "   (" << p.startTime << ")   Core: " << p.coreId
+        if (p.state == "Running" || p.state == "Waiting" || p.state == "Sleeping") {
+            string coreStr = (p.coreId >= 0) ? to_string(p.coreId) : "N/A";
+            cout << left << setw(12) << p.name << "   (" << p.startTime << ")   Core: " << setw(5) << coreStr
                  << "   " << p.pc << " / " << p.instructions.size() << endl;
         }
     }
 
     cout << endl << "Finished processes:" << endl;
     for (const Process& p : allProcesses) {
-        if (p.state == "Finished") {                // only show the processes that are finished
-            cout << p.name << "   (" << p.startTime << ")   Core: " << p.coreId
-                 << "   " << p.pc << " / " << p.instructions.size() << endl;
+        if (p.state == "Finished") {
+            cout << left << setw(12) << p.name << "   (" << p.startTime << ")   Finished   "
+                 << p.instructions.size() << " / " << p.instructions.size() << endl;
         }
     }
+    cout << endl;
 }
 
 // ============================================================
-// SCHEDULER THREAD AND CORE TRACKING
+// SCHEDULER THREAD
 // ============================================================
-
-atomic<bool> runScheduler(false);           // flag that tells the scheduler (and the cores) to keep going or stop
-thread schedulerThread;                     // the one thread that hands out processes to the cores
-
-Process* coreProcess[NUM_CORES];            // process on each core, nullptr means the core is free
-                                            // (protected by processMutex)
-
-// Lock order: processMutex first, then readyQueueMutex
-// (if two threads lock them in different orders they can get stuck waiting on each other forever)
 
 // the scheduler thread: takes processes from the ready queue in FCFS order and gives them to free cores
 void runscheduler() {
     while (runScheduler) {                      // keep looping until stopscheduler() turns the flag off
         {
             lock_guard<mutex> lock(processMutex);       // lock the process info
-            lock_guard<mutex> q(readyQueueMutex);       // lock the queue
+            
+            for (int core = 0; core < systemConfig.numCpu; core++) {      // go through each core
+                if (coreProcess[core] == nullptr) {
+                    lock_guard<mutex> q(readyQueueMutex);       // lock ready queue independently
+                    if (!readyQueue.empty()) {
+                        Process* p = readyQueue.front();    // front of the queue
+                        readyQueue.pop();                   // take it out of the queue
 
-            for (int core = 0; core < NUM_CORES; core++) {      // go through each core, core 0 to 3
-                if (coreProcess[core] == nullptr && !readyQueue.empty()) {  // core is free and someone is waiting
-                    Process* p = readyQueue.front();    // front of the queue = first come, first served
-                    readyQueue.pop();                   // take it out of the queue
-
-                    p->state = "Running";               // mark as running (screen -ls reads this)
-                    p->coreId = core;                   // remember which core has it
-                    coreProcess[core] = p;              // the core is now busy
+                        p->state = "Running";               // mark as running
+                        p->coreId = core;                   // remember which core has it
+                        coreProcess[core] = p;              // the core is now busy
+                        coreQuantumUsed[core] = 0;          // reset quantum counter
+                    }
                 }
             }
         }                                       // locks release here
 
-        this_thread::sleep_for(chrono::milliseconds(1));    // rest a bit so we don't hog the CPU, then check again
+        this_thread::sleep_for(chrono::milliseconds(1));    // rest a bit so we don't hog the CPU
     }
 }
 
 // called by a core worker when its process is done, frees the core
 void releaseCore(int coreId) {
-    lock_guard<mutex> lock(processMutex);       // lock the process info before changing it
+    // Note: Caller must already hold processMutex, or we lock it here safely
     Process* p = coreProcess[coreId];           // the process that just finished on this core
-    p->state = "Finished";                      // screen -ls will now list it under finished
-    p->coreId = -1;                             // not on a core anymore
-    coreProcess[coreId] = nullptr;              // the core is free again, the scheduler will notice on its next loop
+    if (p != nullptr) {
+        p->state = "Finished";                  // screen -ls will now list it under finished
+        p->coreId = -1;                         // not on a core anymore
+    }
+    coreProcess[coreId] = nullptr;              // the core is free again
+    coreQuantumUsed[coreId] = 0;
 }
 
 void startscheduler() {
     if (runScheduler) return;                   // already running, do nothing
+    
+    // Allocate dynamic core structures based on config.txt
+    coreProcess.assign(systemConfig.numCpu, nullptr);
+    coreQuantumUsed.assign(systemConfig.numCpu, 0);
+
     runScheduler = true;                        // turn the flag on before starting the threads
     schedulerThread = thread(runscheduler);     // start the scheduler in its own thread
-    startcores();                               // start the 4 core threads
+    startcores();                               // start core threads
 }
 
 void stopscheduler() {
     if (!runScheduler) return;                  // not running, nothing to stop
+    stopbatchgenerator();
     runScheduler = false;                       // tell every thread to stop
     if (schedulerThread.joinable()) schedulerThread.join();     // wait for the scheduler thread to finish
     stopcores();                                // then wait for the core threads
@@ -132,24 +244,19 @@ void stopscheduler() {
 // CORE THREADS
 // ============================================================
 
-thread coreThreads[NUM_CORES];                  // one thread per core
-
 // helper to write timestamp and core ID to the process's individual text file
 void executePrintToFiles(Process* p, int coreId) {
-if (p == nullptr) return;
+    if (p == nullptr) return;
 
     string filename = p->name + ".txt";
     ofstream outFile(filename, ios::app);
 
     if (outFile.is_open()) {
-        // write the header first
-        if (p->pc == 0) { // changed to match current struct! used to be p->executedInstructions == 0, but now we have pc as the index of the next instruction
+        if (p->pc == 0) { 
             outFile << "Process name: " << p->name << endl;
             outFile << "Logs:" << endl << endl;
         }
 
-        // output format (matched with sir's sample format)
-        // (MM/DD/YYYY HH:MM:SSAM/PM) Core:X "Hello world from NekOS processXX!"
         outFile << "(" << getTimestamp() << ") Core:" << coreId 
                 << " \"Hello world from " << p->name << "!\"" << endl;
         outFile.close();
@@ -157,45 +264,75 @@ if (p == nullptr) return;
 }
 
 void coreworker(int coreId) {
-    while (runScheduler) {                      // a core keeps working until the program stops
-        Process* p;                             // the process this core is going to run
+    while (runScheduler) {
+        Process* p = nullptr;
         {
-            lock_guard<mutex> lock(processMutex);   // lock before reading what the scheduler gave us
-            p = coreProcess[coreId];                // nullptr if nothing was assigned yet
+            lock_guard<mutex> lock(processMutex);
+            p = coreProcess[coreId];
         }
 
-        if (p == nullptr) {                     // nothing to run on this core right now
-            this_thread::sleep_for(chrono::milliseconds(1));    // rest a bit, then check again
+        if (p == nullptr) {
+            this_thread::sleep_for(chrono::milliseconds(5));
             continue;
         }
 
-        // Replaced executedInstructions/totalInstructions with pc < instructions.size() 
-        while (runScheduler && p->pc < p->instructions.size()) {
-            
-            // filters the instructions so that only PRINT instructions are written to the txt file.
+        // Execute step if instructions remain
+        bool isDone = false;
+        if (p->pc < (int)p->instructions.size()) {
             if (p->instructions[p->pc].type == PRINT) {
                 executePrintToFiles(p, coreId); 
             }
 
             {
                 lock_guard<mutex> lock(processMutex);
-                executeNext(*p); // Executes the instruction and advances p->pc
+                isDone = executeNext(*p);
+                coreQuantumUsed[coreId]++;
             }
 
-            this_thread::sleep_for(chrono::milliseconds(10)); // short execution delay
-        }
+            // Apply delay setting from config.txt
+            if (systemConfig.delaysPerExec > 0) {
+                this_thread::sleep_for(chrono::milliseconds(systemConfig.delaysPerExec * 5));
+            } else {
+                this_thread::sleep_for(chrono::milliseconds(1));
+            }
 
-        if (runScheduler) releaseCore(coreId);  // done, free the core (skip if we were told to stop midway)
+            // Post-execution state checks
+            lock_guard<mutex> lock(processMutex);
+            if (isDone) {
+                releaseCore(coreId);
+            } 
+            else if (systemConfig.scheduler == "rr" && 
+                     coreQuantumUsed[coreId] >= (int)systemConfig.quantumCycles) {
+                
+                // Preempt process
+                p->state = "Waiting";
+                p->coreId = -1;
+                coreProcess[coreId] = nullptr;
+                coreQuantumUsed[coreId] = 0;
+
+                // Lock readyQueue without holding processMutex across queue ops
+                {
+                    lock_guard<mutex> qLock(readyQueueMutex);
+                    readyQueue.push(p);
+                }
+            }
+        } else {
+            lock_guard<mutex> lock(processMutex);
+            releaseCore(coreId);
+        }
     }
 }
 
 void startcores() {
-    for (int i = 0; i < NUM_CORES; i++) coreThreads[i] = thread(coreworker, i);     // start one worker per core
-}
-
-void stopcores() {
-    for (int i = 0; i < NUM_CORES; i++) {
-        if (coreThreads[i].joinable()) coreThreads[i].join();   // wait for each core thread to finish
+    coreThreads.clear();
+    for (int i = 0; i < systemConfig.numCpu; i++) {
+        coreThreads.emplace_back(coreworker, i);             // start worker per dynamic core
     }
 }
 
+void stopcores() {
+    for (int i = 0; i < systemConfig.numCpu; i++) {
+        if (coreThreads[i].joinable()) coreThreads[i].join();   // wait for each core thread to finish
+    }
+    coreThreads.clear();
+}
