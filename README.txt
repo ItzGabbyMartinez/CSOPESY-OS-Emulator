@@ -3,14 +3,15 @@ CSOPESY - FCFS CPU Scheduler
 ============================================================
 
 NekOS is a command-line OS emulator developed in C++ for
-CSOPESY. The program implements a multithreaded
-First-Come-First-Serve (FCFS) CPU scheduler together with the
-previously developed marquee console features.
+CSOPESY. The program implements a multithreaded CPU scheduler
+(FCFS or Round Robin), a process multiplexer with a screen
+command, and a small set of process instructions. It also 
+supports marquee console features
 
-Upon startup, the emulator automatically creates 10 processes
-with 100 print commands each. The processes are placed in a
-ready queue and assigned to four available CPU cores according
-to FCFS scheduling.
+The emulator must be initialized first using the initialize
+command. It reads its settings from config.txt, then starts the
+scheduler thread and the CPU worker threads. Processes can be
+created by the user or generated automatically in batches.
 
 
 GROUP MEMBERS
@@ -63,37 +64,31 @@ from the running state to the finished state.
 PROCESS OUTPUT
 ============================================================
 
-Each process generates its own text file containing the output
-of its 100 print commands.
+report-util
 
-The following files are generated:
+generates a report containing CPU utilization details: CPU 
+utilization rate, number of cores used, number of cores available,
+and a list of detailing active processes. 
 
-process01.txt
-process02.txt
-process03.txt
-process04.txt
-process05.txt
-process06.txt
-process07.txt
-process08.txt
-process09.txt
-process10.txt
+example:
 
-Each file identifies the corresponding process and contains
-100 log entries. Each print command records the timestamp of
-execution, the CPU core that executed it, and a message from
-the process.
+CPU utilization: 100%
+Cores used: 4
+Cores available: 0
+-----------------------------------------
+Active processes (Running / Waiting / Sleeping):
+p01          (11/05/2026 06:56:12PM)   State: Waiting      Core: N/A     50 / 1544
+p02          (11/05/2026 06:56:12PM)   State: Waiting      Core: N/A     45 / 1854
+p03          (11/05/2026 06:56:12PM)   State: Waiting      Core: N/A     45 / 1792
+p04          (11/05/2026 06:56:12PM)   State: Waiting      Core: N/A     45 / 1367
+...
 
-Example:
+process-smi
 
-Process name: process02
-Logs:
+screen -ls
 
-(10/17/2026 07:19:23PM) Core:1 "Hello world from process02!"
 
-The generation of process text files is temporary and is used
-for the FCFS scheduler homework. It will be disabled for the
-final machine project submission as required.
+
 
 
 HOW TO RUN
@@ -121,12 +116,34 @@ Using the Terminal:
 
 AVAILABLE COMMANDS
 ============================================================
+initialize
+    Reads config.txt and starts the scheduler. This must be
+    done before any other command, except exit.
 
 help
     Displays the available commands and their descriptions.
 
+screen -s <process name>
+    Creates a new process with random instructions and opens
+    its screen.
+
+screen -r <process name>
+    Reopens the screen of a running process. Prints
+    "Process <process name> not found." if the process does not
+    exist or has already finished.
+
 screen -ls
-    Displays the currently running and finished processes.
+    Displays the CPU utilization, the active processes and the
+    finished processes
+
+scheduler-start
+    Starts generating dummy processes continuously.
+
+scheduler-stop
+    Stops generating dummy processes.
+
+report-util
+    Saves the CPU utilization report to csopesy-log.txt.
 
 start_marquee
     Starts the marquee animation.
@@ -146,30 +163,54 @@ clear
 exit
     Shuts down the NekOS emulator.
 
+Inside a process screen:
 
-FCFS TEST PROCEDURE
+process-smi
+    Displays the process name, ID and logs. It also shows the
+    current instruction line and the total lines of code, or
+    "Finished!" if the process is done.
+
+
+TEST PROCEDURE
 ============================================================
 
 1. Run the NekOS emulator using the IDE's Run/Debug function.
 
-2. Upon startup, 10 processes with 100 print commands each are
-   automatically created and scheduled.
+2. Enter:
 
-3. Enter the following command every 1 to 2 seconds:
+   initialize
+
+3. Enter:
+
+   scheduler-start
+
+4. Enter the following command every 1 to 2 seconds:
 
    screen -ls
 
-4. Observe the processes moving from the running processes list
-   to the finished processes list.
-
-5. Continue until all 10 processes are shown as finished with
-   100 / 100 instructions completed.
+5. Observe the processes moving from the active list to the
+   finished list.
 
 6. Enter:
 
-   exit
+   scheduler-stop
 
-7. Verify that 10 process text files were generated.
+7. To check a single process, enter:
+
+   screen -r <process name>
+
+   Then enter process-smi to see its logs, and exit to go back
+   to the main menu.
+
+8. Enter:
+
+   report-util
+
+   and check that csopesy-log.txt was created.
+
+9. Enter:
+
+   exit
 
 
 EXAMPLE
@@ -177,17 +218,13 @@ EXAMPLE
 
 Command> screen -ls
 
-Running processes:
-process05   Core: 3   84 / 100
-process06   Core: 0   83 / 100
-process07   Core: 1   81 / 100
-process08   Core: 2   82 / 100
-
-Finished processes:
-process01   Finished   100 / 100
-process02   Finished   100 / 100
-process03   Finished   100 / 100
-process04   Finished   100 / 100
+...
+p559         (11/05/2026 06:56:22PM)   State: Waiting      Core: N/A     5 / 1594
+p560         (11/05/2026 06:56:22PM)   State: Waiting      Core: N/A     5 / 1714
+p561         (11/05/2026 06:56:22PM)   State: Waiting      Core: N/A     5 / 1991
+p562         (11/05/2026 06:56:22PM)   State: Waiting      Core: N/A     5 / 1332
+p563         (11/05/2026 06:56:22PM)   State: Waiting      Core: N/A     5 / 1754
+...
 
 Command> exit
 Shutting down NekOS...
